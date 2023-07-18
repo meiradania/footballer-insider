@@ -1,0 +1,4 @@
+langchain
+jq
+sentence_transformers
+chromadb
