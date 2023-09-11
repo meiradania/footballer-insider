@@ -81,13 +81,14 @@ import wikipedia
 from bs4 import BeautifulSoup
 import requests
 import pandas as pd 
+import json
 
 url = 'https://en.wikipedia.org/wiki/List_of_current_members_of_the_United_States_House_of_Representatives'
 url_spain = 'https://en.wikipedia.org/wiki/List_of_football_clubs_in_Spain' ## Club, Home city
 url_italy = 'https://en.wikipedia.org/wiki/List_of_football_clubs_in_Italy' ## Team, Home city
 url_england = 'https://en.wikipedia.org/wiki/List_of_football_clubs_in_England' ## Club, League/Division
 
-response = requests.get(url_england)
+response = requests.get(url_spain)
 soup  = BeautifulSoup(response.text, 'html.parser')
 
 ## Get table by id 
@@ -111,7 +112,8 @@ for table in tables:
         for index, row in df.iterrows():
 
             club_name = row['Team'] if 'Team' in df else row['Club']
-            club_city = row['League/Division']##row['Home city'] if 'Home city' in df else row['City']
+            # club_city = row['League/Division'] if 'League/Division' in df else row['City']
+            club_city = row['Home city'] if 'Home city' in df else row['City']
 
             print(f'{club_name} {club_city}')
             
@@ -137,18 +139,72 @@ for table in tables:
                 obj['summary'] = club.summary if club is not None else None
                 obj['url'] = club.url if club is not None else None
 
+                import re
+
+                # Split the text into sections using '==' as the delimiter
+                sections = re.split(r'\n==\s+', club.content.strip())
+
+                # Remove any leading or trailing whitespace from each section
+                sections = [section.strip() for section in sections if section.strip()]
+
+                # Initialize the result dictionary
+                result = {
+                    "introduction": sections[0].strip(),
+                    "sections": []
+                }
+
+                # Process the remaining sections
+                for section in sections[1:]:
+                    section_parts = section.split('\n')
+                    section_name = section_parts[0].strip().replace('==', '')
+                    section_content = section_parts[1:]
+                    section_content = [item for item in section_content if item]
+                    
+                    # Sub sections 
+                    sub_sections = re.split(r'\n===\s+', "\n".join(section_content))
+                    sub_sections = [sub_section.strip() for sub_section in sub_sections if sub_section.strip()]
+
+                    if len(sub_sections) > 1:
+
+                        index = 0 if '===' in sub_sections[0] else 1
+
+                        introduction = '' if index == 0 else sub_sections[0]
+
+                        section_dict = {section_name.strip(): introduction,
+                                        "sub_sections": []}
+                        
+                        for sub_section in sub_sections[index:]:
+                            sub_section_parts = sub_section.split('\n')
+                            sub_section_name = sub_section_parts[0].strip().replace('===', '')
+                            sub_section_content = sub_section_parts[1:]
+                            sub_section_content = [item for item in sub_section_content if item]
+
+                            section_dict["sub_sections"].append({sub_section_name.strip(): "\n".join(sub_section_content)})
+
+                    else:
+                        # Initialize a dictionary for this section
+                        section_dict = {section_name.strip(): "\n".join(section_content)}
+                    
+                    result["sections"].append(section_dict)
+
+                # Convert the result to JSON
+                json_result = json.dumps(result, indent=4)                
+
+
+
+                obj['content'] = json_result if club is not None else None
+
                 if club is not None:
                     dataset.append(obj)
 
             except Exception as e:
                 print(f'{club_name} {club_city} not found. Returned search {wiki_pages}')
+                print(e)
                 continue
-
-import json
 
 # Create a list
 
 # Open the file in write mode
-with open('dataset_italy.json', 'w') as file:
+with open('dataset_spain_all_page_sections.json', 'w') as file:
     # Write the list to the file using json.dump()
     json.dump(dataset, file)

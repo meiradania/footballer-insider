@@ -1,56 +1,76 @@
-from langchain.document_loaders import JSONLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-## Loading 
-print('--------- Step 1: Data Loader ---------')
-
-loader = JSONLoader(
-    file_path='./data/dataset_spain.json',
-    jq_schema='.[].summary')
-
-json_files = loader.load()
-
-# print(json_files)
-
-## Transform 
-print('--------- Step 2: Data Transformer ---------')
-
-chunk_size = 500
-chunk_overlap = 5
-
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-texts = text_splitter.split_documents(json_files)
-
-print(f"Split into {len(texts)} chunks of text (max. {chunk_size} tokens each)")
+import wikipedia
+wiki_pages = wikipedia.search(f'FC BARCELONA')
+club = wikipedia.page(wiki_pages[0], auto_suggest=False) if len(wiki_pages) > 0 else None
+# club = wikipedia.page("New York")
 
 
-## Data Embedding 
-print('--------- Step 3: Data Embedding ---------')
+# print(f' URL: {club.url}')
+# print(f'TITLE: {club.title}')
+# print(f'SUMMARY: {club.summary}')
+# print(f'CONTENT: {club.content}')
+# print(f'Sections: {club.sections}')
+# print(f'Categories: {club.categories}')
 
-from langchain.embeddings import HuggingFaceEmbeddings
+# sections = club.content.split('==')
+# print(sections[0])
+# print(sections[1])
 
-embeddings = HuggingFaceEmbeddings()
-text = "This is test document."
-
-query_result = embeddings.embed_query(text)
-
-print(query_result)
-
-## Store 
-
-
-## Retrive 
-print('--------- Step 5: Data Retriver ---------')
-
-from langchain.vectorstores import Chroma
-
-db = Chroma.from_documents(texts, embeddings)
-
-query = "what was the year that FC Barcelona got founded."
-answers = db.similarity_search(query)
-
-for answer in answers:
-    print('-------------------------------')
-    print(answer.page_content)
+import re
+import json
 
 
+# Split the text into sections using '==' as the delimiter
+sections = re.split(r'\n==\s+', club.content.strip())
+
+# Remove any leading or trailing whitespace from each section
+sections = [section.strip() for section in sections if section.strip()]
+
+# Initialize the result dictionary
+result = {
+    "introduction": sections[0].strip(),
+    "sections": []
+}
+
+# Process the remaining sections
+for section in sections[1:]:
+    section_parts = section.split('\n')
+    section_name = section_parts[0].strip().replace('==', '')
+    section_content = section_parts[1:]
+    section_content = [item for item in section_content if item]
+
+    # if section_name != 'Players ':
+    #     continue
+    
+    # Sub sections 
+    sub_sections = re.split(r'\n===\s+', "\n".join(section_content))
+    sub_sections = [sub_section.strip() for sub_section in sub_sections if sub_section.strip()]
+
+    if len(sub_sections) > 1:
+
+        index = 0 if '===' in sub_sections[0] else 1
+
+        introduction = '' if index == 0 else sub_sections[0]
+
+        section_dict = {section_name.strip(): introduction,
+                        "sub_sections": []}
+        
+        for sub_section in sub_sections[index:]:
+            sub_section_parts = sub_section.split('\n')
+            sub_section_name = sub_section_parts[0].strip().replace('===', '')
+            sub_section_content = sub_section_parts[1:]
+            sub_section_content = [item for item in sub_section_content if item]
+
+            section_dict["sub_sections"].append({sub_section_name.strip(): "\n".join(sub_section_content)})
+
+    else:
+        # Initialize a dictionary for this section
+        section_dict = {section_name.strip(): "\n".join(section_content)}
+    
+    result["sections"].append(section_dict)
+
+# Convert the result to JSON
+json_result = json.dumps(result, indent=4)
+
+# Print the JSON result
+print(json_result)

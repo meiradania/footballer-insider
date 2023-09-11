@@ -1,42 +1,61 @@
-from datasets import load_dataset
-from transformers import AutoTokenizer, DataCollatorWithPadding
-import os
+import json
+from transformers import pipeline
 
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use the ID of your desired GPU
+file_path = 'dataset_spain_all_page.json'
 
-print('-------------- 1 -------------')
-raw_datasets = load_dataset("glue", "mrpc")
-checkpoint = "bert-base-uncased"
-tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+with open(file_path, 'r') as json_file:
+    data_list = json.load(json_file)
 
+# create context from title and summary
+spanish_data = [data['title'] + "\n" + data["content"] for data in data_list]
 
-def tokenize_function(example):
-    return tokenizer(example["sentence1"], example["sentence2"], truncation=True)
-
-
-tokenized_datasets = raw_datasets.map(tokenize_function, batched=True)
-data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
-
-print('-------------- 2 -------------')
-from transformers import TrainingArguments
-training_args = TrainingArguments("test-trainer")
-
-print('-------------- 3 -------------')
-from transformers import AutoModelForSequenceClassification
-model = AutoModelForSequenceClassification.from_pretrained(checkpoint, num_labels=2)
+i=0
+while i < len(spanish_data):
+  spanish_data[i] = spanish_data[i][0:2000]
+  i+=1
 
 
-print('-------------- 4 -------------')
-from transformers import Trainer
+# print(len(spanish_data))
 
-trainer = Trainer(
-    model,
-    training_args,
-    train_dataset=tokenized_datasets["train"],
-    eval_dataset=tokenized_datasets["validation"],
-    data_collator=data_collator,
-    tokenizer=tokenizer,
-)
 
-trainer.train()
+# SpanishClubsQA3 = pipeline('text2text-generation',
+#                            model='voidful/bart-eqg-question-generator')
+
+# For each wiki page generate a question
+# spanish_qa = {'context': spanish_data,
+#               'question': [],
+#               'answer': [],
+#               }
+
+# spanish_qa['question'] = [SpanishClubsQA3(wiki) for wiki in spanish_data]
+
+# from transformers import T5Tokenizer, T5ForConditionalGeneration
+
+# model = 'google/flan-t5-base'
+# tokenizer = T5Tokenizer.from_pretrained(model)
+# model = T5ForConditionalGeneration.from_pretrained(model)
+
+
+# tokens = tokenizer.tokenize(spanish_data[0][0:1000])
+# print(f'number of tokens: {len(tokens)}')
+
+# inputs = tokenizer('Generate a question: ' + spanish_data[0][0:1000], return_tensors='pt').input_ids
+# outputs = model.generate(inputs)
+
+# inputs_answer = tokenizer(f'Write a full formal answer for this question {tokenizer.decode(outputs[0])}: ', return_tensors='pt').input_ids
+# outputs_answer = model.generate(inputs_answer)
+
+
+# print(spanish_data[0])
+# print('---------------------------------')
+# print(tokenizer.decode(outputs[0]))
+# print('---------------------------------')
+# print(tokenizer.decode(outputs_answer[0]))
+
+
+from transformers import pipeline
+
+SpanishClubsQA = pipeline('text2text-generation',
+                          model='voidful/context-only-question-generator')
+
+SpanishClubsQA(spanish_data[0][0:1000])
